@@ -1,0 +1,1683 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Projeto raízes: diagnóstico de prontidão & estabilização</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts (Plus Jakarta Sans) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Lucide Icons via CDN -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        moss: {
+                            50: '#F5F7F5',
+                            100: '#E6EBE6',
+                            200: '#C7D3C5',
+                            300: '#A4B8A1',
+                            400: '#7E997B',
+                            500: '#5C7A59', // Verde Musgo Principal
+                            600: '#475F45', // Verde Musgo Escuro
+                            700: '#344632',
+                            800: '#232E22',
+                            900: '#121811',
+                        },
+                        sand: {
+                            50: '#FAF8F5',
+                            100: '#F3ECE3',
+                            200: '#E4D5C1',
+                            300: '#D2BA9C',
+                            400: '#C09E77',
+                            500: '#A98153',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Plus Jakarta Sans', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #F8FAF7;
+        }
+        /* Scrollbar custom para relatórios */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #F5F7F5;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #C7D3C5;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #A4B8A1;
+        }
+
+        /* Suporte perfeito para Impressão de PDF */
+        @media print {
+            body, html {
+                background: white !important;
+                color: #1a1a1a !important;
+                width: 100% !important;
+                height: auto !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+            header, footer, aside, .no-print, button, #btn-prev, #btn-next, #form-container {
+                display: none !important;
+            }
+            main {
+                display: block !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                max-width: 100% !important;
+                width: 100% !important;
+            }
+            #form-container {
+                display: none !important;
+            }
+            #report-container {
+                display: block !important;
+                visibility: visible !important;
+                border: none !important;
+                box-shadow: none !important;
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+            #detailed-report-content {
+                border: none !important;
+                box-shadow: none !important;
+                padding: 0 !important;
+            }
+            .print-page-break {
+                page-break-before: always;
+            }
+        }
+    </style>
+</head>
+<body class="text-slate-800 min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-white border-b border-moss-100 sticky top-0 z-40 no-print">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <div class="bg-moss-600 text-white p-2.5 rounded-xl shadow-md shadow-moss-100">
+                    <i data-lucide="sprout" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold text-slate-900 tracking-tight">Projeto raízes</h1>
+                    <p class="text-xs text-moss-600 font-semibold tracking-wider">Diagnóstico de prontidão & estabilização</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="carregarExemploVanessa()" class="inline-flex items-center gap-2 px-3.5 py-2 text-sm font-semibold text-moss-700 bg-moss-50 border border-moss-200 rounded-lg hover:bg-moss-100 transition-all duration-200">
+                    <i data-lucide="sparkles" class="w-4 h-4 text-moss-600"></i>
+                    Simular caso Vanessa
+                </button>
+                <span class="text-xs bg-slate-100 border border-slate-200 text-slate-600 px-2.5 py-1.5 rounded-lg font-mono">CRP 06/136172</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Notification System (Replaces browser alert) -->
+    <div id="custom-toast" class="fixed bottom-5 right-5 z-50 transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none">
+        <div class="bg-moss-800 text-white px-5 py-3.5 rounded-xl shadow-xl flex items-center gap-3 border border-moss-600">
+            <i data-lucide="info" class="w-5 h-5 text-moss-300" id="toast-icon"></i>
+            <span class="text-sm font-medium" id="toast-message">Mensagem</span>
+        </div>
+    </div>
+
+    <!-- Main Container -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col lg:flex-row gap-8">
+        
+        <!-- Sidebar Navigation (Wizard Progress) -->
+        <aside class="lg:w-80 flex-shrink-0 no-print">
+            <div class="bg-white rounded-2xl border border-moss-100 p-5 sticky top-24 shadow-sm">
+                <h2 class="text-xs font-bold text-slate-400 tracking-wider mb-4">Etapas do diagnóstico</h2>
+                <nav class="space-y-1.5" id="wizard-steps-nav">
+                    <!-- Steps will be generated here dynamically -->
+                </nav>
+                
+                <div class="mt-6 pt-6 border-t border-slate-100">
+                    <div class="flex items-center gap-2 text-xs text-slate-500 font-medium mb-3">
+                        <i data-lucide="activity" class="w-4 h-4 text-moss-500"></i>
+                        <span>Progresso geral</span>
+                    </div>
+                    <div class="w-full bg-slate-100 rounded-full h-2">
+                        <div id="overall-progress-bar" class="bg-moss-500 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                    <div class="flex justify-between items-center mt-2">
+                        <span class="text-xs font-semibold text-slate-700" id="progress-text">Passo 1 de 6</span>
+                        <span class="text-xs font-bold text-moss-600" id="progress-percent">0%</span>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Dynamic Form Content & Report Area -->
+        <section class="flex-1 min-w-0">
+            <div class="bg-white rounded-2xl border border-moss-100 p-6 sm:p-8 shadow-sm" id="form-container">
+                
+                <!-- STEP 0: CONTEXTO ESTRATÉGICO -->
+                <div id="step-panel-0" class="step-panel space-y-6">
+                    <div class="border-b border-moss-100 pb-4">
+                        <span class="text-xs font-bold text-moss-600 tracking-widest">Passo inicial</span>
+                        <h2 class="text-2xl font-extrabold text-slate-900 mt-1">Contexto estratégico do perfil</h2>
+                        <p class="text-slate-500 text-sm mt-1">Mapeamento inicial de base para parametrizar seu ecossistema de negócios.</p>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 tracking-wider mb-1.5">Nome completo e credenciais</label>
+                            <input type="text" id="ctx_nome" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-moss-500/20 focus:border-moss-500 transition-all outline-none" placeholder="Ex: Dra. Roberta Silveira (CRP 06/XXXXX)">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 tracking-wider mb-1.5">Anos de experiência clínica</label>
+                            <input type="text" id="ctx_experiencia" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-moss-500/20 focus:border-moss-500 transition-all outline-none" placeholder="Ex: 5 anos de prática clínica">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 tracking-wider mb-1.5">Sua especialidade clínica/principal</label>
+                            <input type="text" id="ctx_especialidade" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-moss-500/20 focus:border-moss-500 transition-all outline-none" placeholder="Ex: Psicoterapia cognitivo-comportamental de adultos">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 tracking-wider mb-1.5">Meta financeira mensal almejada</label>
+                            <div class="relative">
+                                <span class="absolute left-4 top-3 text-slate-400 text-sm font-semibold">R$</span>
+                                <input type="number" id="ctx_meta_financeira" class="w-full border border-slate-300 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:ring-2 focus:ring-moss-500/20 focus:border-moss-500 transition-all outline-none" placeholder="15000">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-moss-50/50 border border-moss-100 rounded-xl p-5 mt-4">
+                        <h3 class="text-sm font-bold text-moss-800 mb-3 flex items-center gap-2">
+                            <i data-lucide="pie-chart" class="w-4 h-4 text-moss-600"></i>
+                            Arquitetura de receita almejada (soma deve atingir 100%)
+                        </h3>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-600 mb-1">% Atendimento clínico</label>
+                                <input type="number" id="ctx_rec_clinica" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-moss-500/10 focus:border-moss-500 outline-none text-center" value="100">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-600 mb-1">% Infoprodutos/lançamentos</label>
+                                <input type="number" id="ctx_rec_infoprodutos" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-moss-500/10 focus:border-moss-500 outline-none text-center" value="0">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-600 mb-1">% Consultorias/supervisões</label>
+                                <input type="number" id="ctx_rec_consultorias" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-moss-500/10 focus:border-moss-500 outline-none text-center" value="0">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-600 mb-1">% Serviços escaláveis</label>
+                                <input type="number" id="ctx_rec_escalavel" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-moss-500/10 focus:border-moss-500 outline-none text-center" value="0">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mt-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 tracking-wider mb-1.5">Pilares teóricos de base</label>
+                            <input type="text" id="ctx_pilares" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-moss-500/20 focus:border-moss-500 transition-all outline-none" placeholder="Ex: TCC, análise do comportamento, neurociências">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 tracking-wider mb-1.5">Tom de voz & estética</label>
+                            <input type="text" id="ctx_tom" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-moss-500/20 focus:border-moss-500 transition-all outline-none" placeholder="Ex: Acolhedor, técnico, tons terrosos e minimalista">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STEP 1: ESTUDO -->
+                <div id="step-panel-1" class="step-panel hidden space-y-6">
+                    <div class="border-b border-moss-100 pb-4">
+                        <span class="text-xs font-bold text-moss-600 tracking-widest">Passo 1</span>
+                        <h2 class="text-2xl font-extrabold text-slate-900 mt-1">Diagnóstico do pilar: estudo</h2>
+                        <p class="text-slate-500 text-sm mt-1">Aprofundamento e robustez teórica são essenciais. Como está sua fundamentação atual?</p>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-800 mb-2">Qual é sua fundamentação atual nos seus pilares teóricos?</label>
+                            <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                                <label class="relative cursor-pointer block">
+                                    <input type="radio" name="est_fundamentacao" value="Muito forte" class="peer sr-only">
+                                    <div class="border border-slate-200 rounded-xl p-3 flex flex-col items-center justify-center text-center hover:border-moss-400 peer-checked:border-moss-500 peer-checked:bg-moss-500 peer-checked:text-white transition-all">
+                                        <span class="text-lg font-extrabold">5</span>
+                                        <span class="text-xs mt-1">Muito forte</span>
+                                    </div>
+                                </label>
+                                <label class="relative cursor-pointer block">
+                                    <input type="radio" name="est_fundamentacao" value="Forte" class="peer sr-only" checked>
+                                    <div class="border border-slate-200 rounded-xl p-3 flex flex-col items-center justify-center text-center hover:border-moss-400 peer-checked:border-moss-500 peer-checked:bg-moss-500 peer-checked:text-white transition-all">
+                                        <span class="text-lg font-extrabold">4</span>
+                                        <span class="text-xs mt-1">Forte</span>
+                                    </div>
+                                </label>
+                                <label class="relative cursor-pointer block">
+                                    <input type="radio" name="est_fundamentacao" value="Média" class="peer sr-only">
+                                    <div class="border border-slate-200 rounded-xl p-3 flex flex-col items-center justify-center text-center hover:border-moss-400 peer-checked:border-moss-500 peer-checked:bg-moss-500 peer-checked:text-white transition-all">
+                                        <span class="text-lg font-extrabold">3</span>
+                                        <span class="text-xs mt-1">Média</span>
+                                    </div>
+                                </label>
+                                <label class="relative cursor-pointer block">
+                                    <input type="radio" name="est_fundamentacao" value="Fraca" class="peer sr-only">
+                                    <div class="border border-slate-200 rounded-xl p-3 flex flex-col items-center justify-center text-center hover:border-moss-400 peer-checked:border-moss-500 peer-checked:bg-moss-500 peer-checked:text-white transition-all">
+                                        <span class="text-lg font-extrabold">2</span>
+                                        <span class="text-xs mt-1">Fraca</span>
+                                    </div>
+                                </label>
+                                <label class="relative cursor-pointer block">
+                                    <input type="radio" name="est_fundamentacao" value="Muito fraca" class="peer sr-only">
+                                    <div class="border border-slate-200 rounded-xl p-3 flex flex-col items-center justify-center text-center hover:border-moss-400 peer-checked:border-moss-500 peer-checked:bg-moss-500 peer-checked:text-white transition-all">
+                                        <span class="text-lg font-extrabold">1</span>
+                                        <span class="text-xs mt-1">Muito fraca</span>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-semibold text-slate-800 mb-1.5">Última leitura densa da sua especialidade?</label>
+                                <select id="est_ultima_leitura" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-moss-500/20 focus:border-moss-500 transition-all bg-white">
+                                    <option value="Semana passada">Semana passada</option>
+                                    <option value="Mês passado" selected>Mês passado</option>
+                                    <option value="Meses">Há alguns meses</option>
+                                    <option value="Não lembro">Não me lembro</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-slate-800 mb-1.5">Horas semanais de estudo dedicado atual?</label>
+                                <input type="number" id="est_horas_semana" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-moss-500/20 focus:border-moss-500 transition-all" value="2">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-800 mb-1.5">Conceitos ou temáticas que sente que não domina plenamente:</label>
+                            <textarea id="est_gaps" rows="2" class="w-full border border-slate-300 rounded-xl p-3 text-sm outline-none focus:ring-2 focus:ring-moss-500/20 focus:border-moss-500 transition-all" placeholder="Ex: Manejo de casais de alta conflituosidade, formulação de casos pela terapia de aceitação..."></textarea>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-800 mb-1.5">O que te impede ou bloqueia de estudar com mais frequência?</label>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" id="est_bloqueios_checkboxes">
+                                <label class="flex items-center gap-2 border border-slate-200 rounded-xl p-3 cursor-pointer hover:bg-moss-50/20">
+                                    <input type="checkbox" name="est_bloqueios" value="Falta de tempo" class="rounded border-slate-300 text-moss-600 focus:ring-moss-500">
+                                    <span class="text-sm text-slate-700">Falta de tempo</span>
+                                </label>
+                                <label class="flex items-center gap-2 border border-slate-200 rounded-xl p-3 cursor-pointer hover:bg-moss-50/20">
+                                    <input type="checkbox" name="est_bloqueios" value="Falta de energia" class="rounded border-slate-300 text-moss-600 focus:ring-moss-500">
+                                    <span class="text-sm text-slate-700">Falta de energia</span>
+                                </label>
+                                <label class="flex items-center gap-2 border border-slate-200 rounded-xl p-3 cursor-pointer hover:bg-moss-50/20">
+                                    <input type="checkbox" name="est_bloqueios" value="Falta de organização" class="rounded border-slate-300 text-moss-600 focus:ring-moss-500">
+                                    <span class="text-sm text-slate-700">Falta de organização</span>
+                                </label>
+                                <label class="flex items-center gap-2 border border-slate-200 rounded-xl p-3 cursor-pointer hover:bg-moss-50/20">
+                                    <input type="checkbox" name="est_bloqueios" value="Medo de não entender" class="rounded border-slate-300 text-moss-600 focus:ring-moss-500">
+                                    <span class="text-sm text-slate-700">Medo de não entender / segurança</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-semibold text-slate-800 mb-1.5">Como você aprende melhor? (seu canal cognitivo)</label>
+                                <select id="est_tipo_aprendiz" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-moss-500/20 focus:border-moss-500 transition-all bg-white">
+                                    <option value="Leitura" selected>Leitura estruturada de artigos/livros</option>
+                                    <option value="Áudio">Áudio e podcasts teóricos</option>
+                                    <option value="Prática">Aplicação prática e supervisão de casos</option>
+                                    <option value="Discussão">Discussão ativa e grupos de estudo</option>
+                                    <option value="Escrita">Resumos escritos e sínteses</option>
+                                    <option value="Multimodal">Multimodal (todas as alternativas integradas)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-slate-800 mb-1.5">Seu maior objetivo de estudo para os próximos 6 meses?</label>
+                                <input type="text" id="est_objetivo_estudo" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-moss-500/20 focus:border-moss-500 transition-all" placeholder="Ex: Domínio de manejos clínicos em estresse pós-traumático">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STEP 2: ROTINA -->
+                <div id="step-panel-2" class="step-panel hidden space-y-6">
+                    <div class="border-b border-moss-100 pb-4">
+                        <span class="text-xs font-bold text-moss-600 tracking-widest">Passo 2</span>
+                        <h2 class="text-2xl font-extrabold text-slate-900 mt-1">Diagnóstico do pilar: rotina e energia</h2>
+                        <p class="text-slate-500 text-sm mt-1">Avaliação do seu tempo real de trabalho. Há espaço viável para estruturar novas fontes de receita?</p>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-semibold text-slate-800 mb-1.5">Quantas horas reais você trabalha por semana?</label>
+                                <input type="number" id="rot_horas_trabalho" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-moss-500/20 focus:border-moss-500 transition-all" value="45">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-slate-800 mb-1.5">Qual atividade é seu maior "vazamento de energia" (dreno)?</label>
+                                <input type="text" id="rot_vazamento" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-moss-500/20 focus:border-moss-500 transition-all" placeholder="Ex: Atender mensagens de agendamento, burocracia de prontuários...">
+                            </div>
+                        </div>
+
+                        <div class="bg-moss-50/40 border border-moss-100 rounded-xl p-5">
+                            <h3 class="text-sm font-bold text-moss-800 mb-3 flex items-center gap-2">
+                                <i data-lucide="clock" class="w-4 h-4 text-moss-600"></i>
+                                Distribuição estimada da carga horária semanal (em horas)
+                            </h3>
+                            <div class="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-600 mb-1">Atendimento clínico</label>
+                                    <input type="number" id="rot_dist_clinico" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-moss-500/10 focus:border-moss-500 outline-none text-center" value="30">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-600 mb-1">Administrativo</label>
+                                    <input type="number" id="rot_dist_adm" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-moss-500/10 focus:border-moss-500 outline-none text-center" value="8">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-600 mb-1">Conteúdo & redes</label>
+                                    <input type="number" id="rot_dist_conteudo" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-moss-500/10 focus:border-moss-500 outline-none text-center" value="5">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-600 mb-1">Infoprodutos/cursos</label>
+                                    <input type="number" id="rot_dist_infoproduto" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-moss-500/10 focus:border-moss-500 outline-none text-center" value="0">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-600 mb-1">Gestão & reuniões</label>
+                                    <input type="number" id="rot_dist_gestao" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-moss-500/10 focus:border-moss-500 outline-none text-center" value="2">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-600 mb-1">Outras atividades</label>
+                                    <input type="number" id="rot_dist_outros" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-moss-500/10 focus:border-moss-500 outline-none text-center" value="0">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-semibold text-slate-800 mb-1.5">Sustentabilidade percebida da sua rotina hoje:</label>
+                                <select id="rot_sustentabilidade" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-moss-500/20 focus:border-moss-500 transition-all bg-white">
+                                    <option value="Verde" class="text-emerald-700 font-bold">Verde - saudável e equilibrada</option>
+                                    <option value="Amarela" class="text-amber-700 font-bold" selected>Amarela - no limiar do cansaço crônico</option>
+                                    <option value="Vermelha" class="text-rose-700 font-bold">Vermelha - insustentável, beirando burnout</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-slate-800 mb-1.5">Espaço para novos projetos atualmente?</label>
+                                <select id="rot_espaco_projeto" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-moss-500/20 focus:border-moss-500 transition-all bg-white">
+                                    <option value="Sim">Sim, tenho tempo disponível livre</option>
+                                    <option value="Só cortando" selected>Apenas cortando/delegando tarefas atuais</option>
+                                    <option value="Não">Não, agenda sem qualquer margem</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-semibold text-slate-800 mb-1.5">Pior dia da semana e principal motivo:</label>
+                                <input type="text" id="rot_pior_dia" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-moss-500/20 focus:border-moss-500 transition-all" placeholder="Ex: Terça-feira (atendimentos contínuos sem pausa)">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-slate-800 mb-1.5">Você tem um dia livre ou de respiro estratégico?</label>
+                                <input type="text" id="rot_dia_respiro" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-moss-500/20 focus:border-moss-500 transition-all" placeholder="Ex: Sim, sexta à tarde livre ou não possuo">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STEP 3: AUTOCUIDADO -->
+                <div id="step-panel-3" class="step-panel hidden space-y-6">
+                    <div class="border-b border-moss-100 pb-4">
+                        <span class="text-xs font-bold text-moss-600 tracking-widest">Passo 3</span>
+                        <h2 class="text-2xl font-extrabold text-slate-900 mt-1">Diagnóstico do pilar: autocuidado mínimo viável</h2>
+                        <p class="text-slate-500 text-sm mt-1">Sua integridade psicofísica é o ativo de maior valor. Vamos avaliar os pilares biológicos básicos.</p>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-semibold text-slate-800 mb-1.5">Horas de sono por noite e qualidade perceptiva:</label>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <input type="number" id="aut_sono_horas" class="border border-slate-300 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-moss-500/20 focus:border-moss-500" placeholder="Horas" value="6">
+                                    <select id="aut_sono_qualidade" class="border border-slate-300 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-moss-500/20 focus:border-moss-500 bg-white">
+                                        <option value="Ótima">Ótima</option>
+                                        <option value="Boa">Boa</option>
+                                        <option value="Aceitável" selected>Aceitável</option>
+                                        <option value="Ruim">Ruim</option>
+                                        <option value="Muito ruim">Muito ruim</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-slate-800 mb-1.5">Movimento corporal (exercícios/atividade)?</label>
+                                <select id="aut_movimento" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-moss-500/20 focus:border-moss-500 transition-all bg-white">
+                                    <option value="Inexistente">Inexistente ou muito esporádico</option>
+                                    <option value="1 a 2 vezes por semana">1 a 2 vezes por semana</option>
+                                    <option value="3 ou mais vezes por semana" selected>3 ou mais vezes por semana</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-sm font-semibold text-slate-800 mb-1.5">Como avalia sua alimentação hoje?</label>
+                                <select id="aut_alimentacao" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-moss-500/20 focus:border-moss-500 transition-all bg-white">
+                                    <option value="Planejada">Organizada, saudável e regular</option>
+                                    <option value="Inconsistente" selected>Inconsistente (sabor de acordo com a correria)</option>
+                                    <option value="Caótica">Caótica (sem horários definidos / ultraprocessados)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-slate-800 mb-1.5">Tempo livre para descanso/lazer?</label>
+                                <select id="aut_lazer" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-moss-500/20 focus:border-moss-500 transition-all bg-white">
+                                    <option value="Satisfeita">Suficiente e com qualidade</option>
+                                    <option value="Incomodada" selected>Gostaria de mais, mas raramente consigo tempo</option>
+                                    <option value="Inexistente">Escasso ou sinto culpa quando descanso</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-slate-800 mb-1.5">Nível autodeclarado de estresse/depleção:</label>
+                                <select id="aut_deplecao" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-moss-500/20 focus:border-moss-500 transition-all bg-white">
+                                    <option value="Baixo">Baixo (mantenho bons ciclos de renovação)</option>
+                                    <option value="Médio">Médio (cansaço típico acumulado)</option>
+                                    <option value="Alto" selected>Alto (beirando exaustão física ou mental)</option>
+                                    <option value="Crítico">Crítico (sintomas físicos, insônia crônica ou colapso)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-semibold text-slate-800 mb-1.5">Qual dimensão de autocuidado é mais negligenciada?</label>
+                                <select id="aut_mais_negligenciado" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-moss-500/20 focus:border-moss-500 transition-all bg-white">
+                                    <option value="Sono" selected>Sono (horário e higiene do sono)</option>
+                                    <option value="Movimento">Movimento corporal ativo</option>
+                                    <option value="Alimentação">Alimentação saudável e conscienciosa</option>
+                                    <option value="Lazer">Tempo de lazer com significado</option>
+                                    <option value="Conexão social">Conexões sociais próximas</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-slate-800 mb-1.5">Se pudesse introduzir apenas uma melhoria hoje, qual seria?</label>
+                                <input type="text" id="aut_uma_mudanca" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-moss-500/20 focus:border-moss-500 transition-all" placeholder="Ex: Desconectar do celular após as 21h30">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STEP 4: MENTALIDADE -->
+                <div id="step-panel-4" class="step-panel hidden space-y-6">
+                    <div class="border-b border-moss-100 pb-4">
+                        <span class="text-xs font-bold text-moss-600 tracking-widest">Passo 4</span>
+                        <h2 class="text-2xl font-extrabold text-slate-900 mt-1">Diagnóstico do pilar: mentalidade & segurança</h2>
+                        <p class="text-slate-500 text-sm mt-1">Fatores cognitivos e limitadores internos. Mapear barreiras mentais ajuda a programar reframe operacional.</p>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-semibold text-slate-800 mb-1.5">Qual seu maior medo sobre crescer profissionalmente?</label>
+                                <input type="text" id="men_medo_crescimento" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-moss-500/20 focus:border-moss-500 transition-all" placeholder="Ex: Perder a qualidade de vida ou tempo com minha família">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-slate-800 mb-1.5">Acredita internamente que merece prosperar e receber mais?</label>
+                                <select id="men_merecimento" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-moss-500/20 focus:border-moss-500 transition-all bg-white">
+                                    <option value="Totalmente">Sim, tenho plena clareza e convicção do meu valor</option>
+                                    <option value="Meio termo" selected>Em termos (sinto que quero, mas com alguma ressalva inconsciente)</option>
+                                    <option value="Dúvida">Tenho forte hesitação sobre minha competência atual</option>
+                                    <option value="Não">Não me sinto confortável com a ideia de faturar muito mais</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-semibold text-slate-800 mb-1.5">Qual voz crítica interna é mais recorrente em você?</label>
+                                <select id="men_voz_critica" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-moss-500/20 focus:border-moss-500 transition-all bg-white">
+                                    <option value="Sua voz interna" selected>Autocrítica feroz de que nunca é impecável o bastante</option>
+                                    <option value="De alguém importante">A opinião/expectativas projetadas de alguém da minha história</option>
+                                    <option value="Comparação com outras">Comparação intensa e dolorosa com outras profissionais em redes</option>
+                                    <option value="Perfeccionismo">Foco perfeccionista de que nada está pronto para ser lançado</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-slate-800 mb-1.5">Frequência da síndrome do impostor:</label>
+                                <select id="men_impostor" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-moss-500/20 focus:border-moss-500 transition-all bg-white">
+                                    <option value="Sempre">Sempre presente ao tomar decisões e ditar valores</option>
+                                    <option value="Frequentemente" selected>Frequentemente (tenho receios constantes de ser descoberta)</option>
+                                    <option value="Às vezes">Às vezes, apenas em novos patamares de entrega</option>
+                                    <option value="Nunca">Raramente ou nunca lido com essa autoimagem</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-800 mb-1.5">Qual crença limitante sobre seu trabalho é mais marcante hoje?</label>
+                            <input type="text" id="men_crença_limitante" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-moss-500/20 focus:border-moss-500 transition-all" placeholder="Ex: 'Não tenho tempo físico para mais nada', 'Vender infoprodutos drena minha ética médica'">
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-semibold text-slate-800 mb-1.5">Medo de crescimento (o que você acha que acontecerá se der muito certo?)</label>
+                                <input type="text" id="men_medo_sucesso" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-moss-500/20 focus:border-moss-500 transition-all" placeholder="Ex: Meus colegas dirão que me tornei mercantilista ou perderei a privacidade">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-slate-800 mb-1.5">Segurança psicológica global para execução:</label>
+                                <select id="men_seguranca_psicologica" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-moss-500/20 focus:border-moss-500 transition-all bg-white">
+                                    <option value="Alta">Alta - me sinto autoconfiante e encorajada para avançar</option>
+                                    <option value="Média" selected>Média - hesito consideravelmente, mas ajo apesar do medo</option>
+                                    <option value="Baixa">Baixa - paralisada, com receio de expor novos limites ou serviços</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STEP 5: SELEÇÃO DE FORMATO DE SAÍDA E GERAÇÃO -->
+                <div id="step-panel-5" class="step-panel hidden space-y-6">
+                    <div class="border-b border-moss-100 pb-4">
+                        <span class="text-xs font-bold text-moss-600 tracking-widest">Etapa final</span>
+                        <h2 class="text-2xl font-extrabold text-slate-900 mt-1">Configurar nível do relatório de saída</h2>
+                        <p class="text-slate-500 text-sm mt-1">Selecione o grau de profundidade analítica de estabilização do seu diagnóstico.</p>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+                        <!-- Level 1 Card -->
+                        <label class="border-2 border-slate-200 hover:border-moss-500 rounded-2xl p-5 flex flex-col justify-between cursor-pointer transition-all relative">
+                            <input type="radio" name="formato_saida" value="Level 1" class="absolute top-4 right-4 text-moss-600 focus:ring-moss-500 h-4 w-4">
+                            <div class="mb-4">
+                                <div class="bg-moss-50 text-moss-700 w-10 h-10 rounded-xl flex items-center justify-center mb-3">
+                                    <i data-lucide="award" class="w-5 h-5"></i>
+                                </div>
+                                <h3 class="text-base font-bold text-slate-900">Level 1 - executivo</h3>
+                                <p class="text-xs text-slate-500 mt-1">Visão rápida. Indicado para tomadas de decisão breves de direção executiva e 1 conselho por pilar.</p>
+                            </div>
+                            <span class="text-xs font-semibold text-slate-400">1 página de síntese</span>
+                        </label>
+
+                        <!-- Level 2 Card -->
+                        <label class="border-2 border-moss-500 bg-moss-50/20 rounded-2xl p-5 flex flex-col justify-between cursor-pointer transition-all relative">
+                            <input type="radio" name="formato_saida" value="Level 2" class="absolute top-4 right-4 text-moss-600 focus:ring-moss-500 h-4 w-4" checked>
+                            <div class="mb-4">
+                                <div class="bg-moss-100 text-moss-800 w-10 h-10 rounded-xl flex items-center justify-center mb-3">
+                                    <i data-lucide="trending-up" class="w-5 h-5"></i>
+                                </div>
+                                <h3 class="text-base font-bold text-slate-900">Level 2 - operacional</h3>
+                                <p class="text-xs text-slate-500 mt-1">Contempla o diagnóstico detalhado e planos estratégicos estruturados de estabilização por pilar.</p>
+                            </div>
+                            <span class="text-xs font-bold text-moss-600">Recomendado para profissionais</span>
+                        </label>
+
+                        <!-- Level 3 Card -->
+                        <label class="border-2 border-slate-200 hover:border-moss-500 rounded-2xl p-5 flex flex-col justify-between cursor-pointer transition-all relative">
+                            <input type="radio" name="formato_saida" value="Level 3" class="absolute top-4 right-4 text-moss-600 focus:ring-moss-500 h-4 w-4">
+                            <div class="mb-4">
+                                <div class="bg-amber-50 text-amber-800 w-10 h-10 rounded-xl flex items-center justify-center mb-3">
+                                    <i data-lucide="layers" class="w-5 h-5"></i>
+                                </div>
+                                <h3 class="text-base font-bold text-slate-900">Level 3 - completo</h3>
+                                <p class="text-xs text-slate-500 mt-1">Completo com plano estratégico, scripts diários contra síndrome do impostor, check-lists e templates de rastreabilidade semanal.</p>
+                            </div>
+                            <span class="text-xs font-bold text-amber-700">Abordagem integral</span>
+                        </label>
+                    </div>
+
+                    <div class="bg-slate-50 rounded-xl p-5 border border-slate-200">
+                        <div class="flex gap-3">
+                            <div class="p-1">
+                                <i data-lucide="info" class="w-5 h-5 text-moss-600"></i>
+                            </div>
+                            <p class="text-xs text-slate-600 leading-relaxed">
+                                <strong>Como opera o cálculo de prontidão?</strong> O sistema processa uma validação lógica cruzada de sua carga horária declarada, exaustão biológica e insegurança diagnóstica para prever se há integridade ecológica para implementar projetos escaláveis agora ou se é mandatório atuar em estabilização prévia.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Navigation Controls -->
+                <div class="flex justify-between items-center pt-6 border-t border-slate-100 mt-8 no-print">
+                    <button type="button" id="btn-prev" onclick="navegarEtapa(-1)" class="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:pointer-events-none">
+                        <i data-lucide="arrow-left" class="w-4 h-4"></i>
+                        Voltar
+                    </button>
+                    <button type="button" id="btn-next" onclick="navegarEtapa(1)" class="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-semibold text-white bg-moss-600 hover:bg-moss-700 rounded-xl shadow-md shadow-moss-600/15 transition-all">
+                        <span>Avançar</span>
+                        <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- DYNAMIC REPORT AREA (HIDDEN UNTIL GENERATION) -->
+            <div id="report-container" class="hidden space-y-8">
+                <!-- Banner Diagnostic -->
+                <div class="bg-white border border-moss-100 rounded-2xl overflow-hidden shadow-sm" id="printable-area">
+                    <div class="p-6 sm:p-8 border-b border-moss-100 flex flex-col md:flex-row md:items-center justify-between gap-6 bg-gradient-to-r from-moss-50/50 via-white to-transparent">
+                        <div class="space-y-1">
+                            <span class="text-xs font-bold text-moss-600 flex items-center gap-1">
+                                <i data-lucide="activity" class="w-3.5 h-3.5"></i> Projeto raízes - síntese automatizada
+                            </span>
+                            <h2 class="text-2xl font-extrabold text-slate-900 tracking-tight">Relatório de prontidão e estabilização</h2>
+                            <p class="text-slate-500 text-sm">Estruturado especificamente para <span class="font-bold text-slate-700" id="rep_nome_vanessa"></span></p>
+                        </div>
+                        <div class="flex flex-wrap gap-2 no-print">
+                            <button onclick="acionarImpressao()" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
+                                <i data-lucide="printer" class="w-4 h-4"></i> Imprimir / pdf
+                            </button>
+                            <button onclick="copiarMarkdown()" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-moss-600 hover:bg-moss-700 transition-colors rounded-xl">
+                                <i data-lucide="copy" class="w-4 h-4"></i> Copiar markdown
+                            </button>
+                            <button onclick="voltarAoFormulario()" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-500 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors">
+                                <i data-lucide="refresh-cw" class="w-4 h-4"></i> Refazer
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Veredito de Prontidão e Matriz de Pilar -->
+                    <div class="p-6 sm:p-8">
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            
+                            <!-- Veredito Final -->
+                            <div class="lg:col-span-1 rounded-2xl border p-5 flex flex-col justify-between" id="veredito-status-box">
+                                <div class="space-y-3">
+                                    <h3 class="text-xs font-bold text-slate-400 tracking-wider">Diagnóstico final</h3>
+                                    <div class="flex items-center gap-2.5">
+                                        <div class="w-4.5 h-4.5 rounded-full" id="status-dot"></div>
+                                        <span class="text-2xl font-extrabold" id="veredito-titulo">Aguardando</span>
+                                    </div>
+                                    <p class="text-xs text-slate-600 leading-relaxed" id="veredito-descricao"></p>
+                                </div>
+                                <div class="mt-6 pt-4 border-t border-slate-100 space-y-2">
+                                    <div class="flex justify-between text-xs"><span class="text-slate-500">Janela de estabilização:</span> <span class="font-bold text-slate-800" id="veredito-timeline"></span></div>
+                                    <div class="flex justify-between text-xs"><span class="text-slate-500">Reavaliação estratégica:</span> <span class="font-bold text-moss-600" id="veredito-data"></span></div>
+                                </div>
+                            </div>
+
+                            <!-- Matriz Status dos Pilares -->
+                            <div class="lg:col-span-2 border border-slate-200 rounded-2xl p-5">
+                                <h3 class="text-xs font-bold text-slate-400 tracking-wider mb-4">Matriz de urgência & pilares de estabilização</h3>
+                                <div class="space-y-3.5">
+                                    <!-- Pilar Estudo -->
+                                    <div class="flex items-center justify-between p-2.5 rounded-xl border border-slate-100">
+                                        <div class="flex items-center gap-3">
+                                            <div class="bg-blue-50 text-blue-700 p-1.5 rounded-lg"><i data-lucide="graduation-cap" class="w-4 h-4"></i></div>
+                                            <div>
+                                                <h4 class="text-xs font-bold text-slate-800">Pilar 1: estudo estruturado</h4>
+                                                <p class="text-[10px] text-slate-400">Robustez teórica e técnica na especialidade</p>
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center gap-3">
+                                            <span class="text-xs font-semibold px-2.5 py-1 rounded-full text-center" id="badge-pilar-estudo">Verde</span>
+                                            <span class="text-xs font-bold text-slate-700 w-16 text-right" id="urgencia-pilar-estudo">-</span>
+                                        </div>
+                                    </div>
+                                    <!-- Pilar Rotina -->
+                                    <div class="flex items-center justify-between p-2.5 rounded-xl border border-slate-100">
+                                        <div class="flex items-center gap-3">
+                                            <div class="bg-amber-50 text-amber-700 p-1.5 rounded-lg"><i data-lucide="clock-4" class="w-4 h-4"></i></div>
+                                            <div>
+                                                <h4 class="text-xs font-bold text-slate-800">Pilar 2: rotina & energia</h4>
+                                                <p class="text-[10px] text-slate-400">Sustentabilidade de agenda e margem livre</p>
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center gap-3">
+                                            <span class="text-xs font-semibold px-2.5 py-1 rounded-full text-center" id="badge-pilar-rotina">Verde</span>
+                                            <span class="text-xs font-bold text-slate-700 w-16 text-right" id="urgencia-pilar-rotina">-</span>
+                                        </div>
+                                    </div>
+                                    <!-- Pilar Autocuidado -->
+                                    <div class="flex items-center justify-between p-2.5 rounded-xl border border-slate-100">
+                                        <div class="flex items-center gap-3">
+                                            <div class="bg-emerald-50 text-emerald-700 p-1.5 rounded-lg"><i data-lucide="heart" class="w-4 h-4"></i></div>
+                                            <div>
+                                                <h4 class="text-xs font-bold text-slate-800">Pilar 3: autocuidado mínimo viável</h4>
+                                                <p class="text-[10px] text-slate-400">Ativos biológicos básicos de sustentação</p>
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center gap-3">
+                                            <span class="text-xs font-semibold px-2.5 py-1 rounded-full text-center" id="badge-pilar-autocuidado">Verde</span>
+                                            <span class="text-xs font-bold text-slate-700 w-16 text-right" id="urgencia-pilar-autocuidado">-</span>
+                                        </div>
+                                    </div>
+                                    <!-- Pilar Mentalidade -->
+                                    <div class="flex items-center justify-between p-2.5 rounded-xl border border-slate-100">
+                                        <div class="flex items-center gap-3">
+                                            <div class="bg-indigo-50 text-indigo-700 p-1.5 rounded-lg"><i data-lucide="brain" class="w-4 h-4"></i></div>
+                                            <div>
+                                                <h4 class="text-xs font-bold text-slate-800">Pilar 4: mentalidade & segurança</h4>
+                                                <p class="text-[10px] text-slate-400">Barreiras de sabotagem e crenças limitantes</p>
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center gap-3">
+                                            <span class="text-xs font-semibold px-2.5 py-1 rounded-full text-center" id="badge-pilar-mentalidade">Verde</span>
+                                            <span class="text-xs font-bold text-slate-700 w-16 text-right" id="urgencia-pilar-mentalidade">-</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Requisitos de Ativação -->
+                        <div class="mt-8 bg-slate-50 rounded-2xl p-6 border border-slate-100">
+                            <h3 class="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+                                <i data-lucide="shield-check" class="w-4 h-4 text-emerald-600"></i>
+                                Requisitos de ativação (checklist de prontidão de longo prazo)
+                            </h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div class="flex gap-3">
+                                    <div class="pt-0.5"><i data-lucide="check-circle" class="w-4 h-4 text-moss-600" id="chk-estudo-icon"></i></div>
+                                    <div>
+                                        <p class="text-xs font-bold text-slate-800">Estudo estruturado iniciado</p>
+                                        <p class="text-[10px] text-slate-500" id="chk-estudo-desc">Mínimo de robustez de fundamentação teórica alcançado.</p>
+                                    </div>
+                                </div>
+                                <div class="flex gap-3">
+                                    <div class="pt-0.5"><i data-lucide="check-circle" class="w-4 h-4 text-moss-600" id="chk-rotina-icon"></i></div>
+                                    <div>
+                                        <p class="text-xs font-bold text-slate-800">Rotina reorganizada</p>
+                                        <p class="text-[10px] text-slate-500" id="chk-rotina-desc">Criação planejada de tempo real para execução de novos projetos.</p>
+                                    </div>
+                                </div>
+                                <div class="flex gap-3">
+                                    <div class="pt-0.5"><i data-lucide="check-circle" class="w-4 h-4 text-moss-600" id="chk-autocuidado-icon"></i></div>
+                                    <div>
+                                        <p class="text-xs font-bold text-slate-800">Mudança mínima de autocuidado ativa</p>
+                                        <p class="text-[10px] text-slate-500" id="chk-autocuidado-desc">Garantia de integridade física para execução saudável.</p>
+                                    </div>
+                                </div>
+                                <div class="flex gap-3">
+                                    <div class="pt-0.5"><i data-lucide="check-circle" class="w-4 h-4 text-moss-600" id="chk-mentalidade-icon"></i></div>
+                                    <div>
+                                        <p class="text-xs font-bold text-slate-800">Crenças limitantes identificadas e reframeadas</p>
+                                        <p class="text-[10px] text-slate-500" id="chk-mentalidade-desc">Garante segurança de posicionamento ético sem ruído interno.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                    <!-- Detalhes do Relatório -->
+                    <div class="bg-white border-t border-moss-100 p-6 sm:p-8 space-y-8" id="detailed-report-content">
+                        <!-- Dinamicamente renderizado via Javascript -->
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-slate-200 py-6 mt-12 no-print">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-xs text-slate-400">
+            <p>© 2026 - Projeto raízes: diagnóstico & estabilização. Todos os direitos reservados.</p>
+        </div>
+    </footer>
+
+    <!-- Logic Script -->
+    <script>
+        // Steps Setup
+        const steps = [
+            { id: 0, title: "Contexto estratégico", icon: "user-check" },
+            { id: 1, title: "Pilar 1: estudo", icon: "graduation-cap" },
+            { id: 2, title: "Pilar 2: rotina", icon: "clock-4" },
+            { id: 3, title: "Pilar 3: autocuidado", icon: "heart" },
+            { id: 4, title: "Pilar 4: mentalidade", icon: "brain" },
+            { id: 5, title: "Geração do relatório", icon: "file-text" }
+        ];
+
+        let currentStep = 0;
+
+        // Custom Toast Notification instead of alert
+        function showNotification(message, isWarning = false) {
+            const toast = document.getElementById("custom-toast");
+            const toastMsg = document.getElementById("toast-message");
+            const toastIcon = document.getElementById("toast-icon");
+            
+            toastMsg.textContent = message;
+            if (isWarning) {
+                toastIcon.setAttribute("data-lucide", "alert-triangle");
+                toast.firstElementChild.className = "bg-amber-850 text-white px-5 py-3.5 rounded-xl shadow-xl flex items-center gap-3 border border-amber-600";
+            } else {
+                toastIcon.setAttribute("data-lucide", "check-circle");
+                toast.firstElementChild.className = "bg-moss-800 text-white px-5 py-3.5 rounded-xl shadow-xl flex items-center gap-3 border border-moss-600";
+            }
+            
+            lucide.createIcons();
+            
+            toast.classList.remove("translate-y-20", "opacity-0");
+            toast.classList.add("translate-y-0", "opacity-100");
+            
+            setTimeout(() => {
+                toast.classList.remove("translate-y-0", "opacity-100");
+                toast.classList.add("translate-y-20", "opacity-0");
+            }, 5000);
+        }
+
+        // Initialize Wizard sidebar
+        function initWizard() {
+            const container = document.getElementById("wizard-steps-nav");
+            container.innerHTML = "";
+            steps.forEach((step, idx) => {
+                const isActive = idx === currentStep;
+                const isPassed = idx < currentStep;
+                
+                let iconClass = "text-slate-400";
+                let bgClass = "bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900";
+                
+                if (isActive) {
+                    iconClass = "text-moss-600";
+                    bgClass = "bg-moss-50 border-l-4 border-moss-600 text-moss-900 font-bold";
+                } else if (isPassed) {
+                    iconClass = "text-moss-600";
+                    bgClass = "bg-moss-50/10 text-slate-500 font-medium";
+                }
+
+                container.innerHTML += `
+                    <button onclick="pularParaEtapa(${idx})" class="w-full flex items-center justify-between px-3.5 py-3 text-xs rounded-xl transition-all ${bgClass} ${idx > 0 && idx > currentStep ? 'opacity-70' : ''}">
+                        <div class="flex items-center gap-3">
+                            <i data-lucide="${step.icon}" class="w-4 h-4 ${iconClass}"></i>
+                            <span class="text-left">${step.title}</span>
+                        </div>
+                        ${isPassed ? '<i data-lucide="check-circle-2" class="w-4 h-4 text-moss-600"></i>' : ''}
+                    </button>
+                `;
+            });
+            
+            // Updates progress indicators
+            const percent = Math.round((currentStep / (steps.length - 1)) * 100);
+            document.getElementById("overall-progress-bar").style.width = `${percent}%`;
+            document.getElementById("progress-text").textContent = `Passo ${currentStep + 1} de ${steps.length}`;
+            document.getElementById("progress-percent").textContent = `${percent}%`;
+
+            // Adjust form steps display
+            steps.forEach(step => {
+                const panel = document.getElementById(`step-panel-${step.id}`);
+                if (panel) {
+                    if (step.id === currentStep) {
+                        panel.classList.remove('hidden');
+                    } else {
+                        panel.classList.add('hidden');
+                    }
+                }
+            });
+
+            // Adjust navigation button state
+            const prevBtn = document.getElementById("btn-prev");
+            const nextBtn = document.getElementById("btn-next");
+
+            if (currentStep === 0) {
+                prevBtn.disabled = true;
+            } else {
+                prevBtn.disabled = false;
+            }
+
+            if (currentStep === steps.length - 1) {
+                nextBtn.innerHTML = `<span>Gerar diagnóstico estratégico</span> <i data-lucide="rocket" class="w-4 h-4"></i>`;
+                nextBtn.onclick = processarGerarRelatorio;
+            } else {
+                nextBtn.innerHTML = `<span>Avançar</span> <i data-lucide="arrow-right" class="w-4 h-4"></i>`;
+                nextBtn.onclick = () => navegarEtapa(1);
+            }
+
+            lucide.createIcons();
+        }
+
+        function navegarEtapa(direction) {
+            const nextStep = currentStep + direction;
+            if (nextStep >= 0 && nextStep < steps.length) {
+                currentStep = nextStep;
+                initWizard();
+            }
+        }
+
+        function pularParaEtapa(stepIdx) {
+            currentStep = stepIdx;
+            initWizard();
+        }
+
+        // Prepopulate demo data simulating Vanessa Ferreira Santos
+        function carregarExemploVanessa() {
+            // Step 0 Context
+            document.getElementById("ctx_nome").value = "Vanessa Ferreira Santos (CRP 06/136172)";
+            document.getElementById("ctx_experiencia").value = "9 anos de clínica";
+            document.getElementById("ctx_especialidade").value = "Psicóloga clínica de casal e terapia cognitivo-comportamental";
+            document.getElementById("ctx_meta_financeira").value = "15000";
+            document.getElementById("ctx_rec_clinica").value = "80";
+            document.getElementById("ctx_rec_infoprodutos").value = "10";
+            document.getElementById("ctx_rec_consultorias").value = "10";
+            document.getElementById("ctx_rec_escalavel").value = "0";
+            document.getElementById("ctx_pilares").value = "TCC, terapia de aceitação e compromisso (ACT), psicologia baseada em evidências";
+            document.getElementById("ctx_tom").value = "Acolhedor, técnico, tons neutros, confiável";
+
+            // Step 1: Study
+            const radFund = document.getElementsByName("est_fundamentacao");
+            radFund.forEach(r => {
+                if (r.value === "Média") r.checked = true;
+                else r.checked = false;
+            });
+            document.getElementById("est_ultima_leitura").value = "Meses";
+            document.getElementById("est_horas_semana").value = "2";
+            document.getElementById("est_gaps").value = "Formulação de casos mais complexos de casais disfuncionais sob a ótica da ACT e manejo clínico de dependência afetiva severa.";
+            
+            // Checkboxes
+            const blocks = document.getElementsByName("est_bloqueios");
+            blocks.forEach(b => {
+                if (b.value === "Falta de tempo" || b.value === "Falta de energia") b.checked = true;
+                else b.checked = false;
+            });
+            document.getElementById("est_tipo_aprendiz").value = "Leitura";
+            document.getElementById("est_objetivo_estudo").value = "Aprofundar em conceitos práticos de ACT aplicados à clínica de casais modernos.";
+
+            // Step 2: Routine
+            document.getElementById("rot_horas_trabalho").value = "48";
+            document.getElementById("rot_vazamento").value = "Burocracias manuais de prontuários em fichas físicas e respostas repetidas de agendamento no WhatsApp.";
+            document.getElementById("rot_dist_clinico").value = "36";
+            document.getElementById("rot_dist_adm").value = "8";
+            document.getElementById("rot_dist_conteudo").value = "4";
+            document.getElementById("rot_dist_infoproduto").value = "0";
+            document.getElementById("rot_dist_gestao").value = "0";
+            document.getElementById("rot_dist_outros").value = "0";
+            document.getElementById("rot_sustentabilidade").value = "Vermelha";
+            document.getElementById("rot_espaco_projeto").value = "Não";
+            document.getElementById("rot_pior_dia").value = "Quinta-feira (9 atendimentos diretos mais elaboração de relatórios à noite)";
+            document.getElementById("rot_dia_respiro").value = "Não tenho (atendimentos clínicos cobrem inclusive sábado de manhã)";
+
+            // Step 3: Self-care
+            document.getElementById("aut_sono_horas").value = "5";
+            document.getElementById("aut_sono_qualidade").value = "Ruim";
+            document.getElementById("aut_movimento").value = "Inexistente";
+            document.getElementById("aut_alimentacao").value = "Caótica";
+            document.getElementById("aut_lazer").value = "Inexistente";
+            document.getElementById("aut_deplecao").value = "Alto";
+            document.getElementById("aut_mais_negligenciado").value = "Sono";
+            document.getElementById("aut_uma_mudanca").value = "Inserir caminhada de 30 minutos na rua pela manhã antes do primeiro atendimento.";
+
+            // Step 4: Mindset
+            document.getElementById("men_medo_crescimento").value = "Achar que crescer meu faturamento vai roubar completamente o restinho de tempo de lazer que tenho.";
+            document.getElementById("men_merecimento").value = "Meio termo";
+            document.getElementById("men_voz_critica").value = "Comparação com outras";
+            document.getElementById("men_impostor").value = "Frequentemente";
+            document.getElementById("men_crença_limitante").value = "Eu não tenho tempo físico para vender, gerenciar ou criar infoprodutos e continuar com a clínica cheia.";
+            document.getElementById("men_medo_sucesso").value = "Se eu lotar a agenda ou cobrar caro, as pessoas vão se afastar e meus colegas acharão que sou mercantilista.";
+            document.getElementById("men_seguranca_psicologica").value = "Baixa";
+
+            showNotification("Caso clínico da Vanessa carregado com sucesso!");
+            currentStep = 0;
+            initWizard();
+        }
+
+        // PRINT HANDLER - FIXED FOR SANDBOXED IFRAMES
+        function acionarImpressao() {
+            try {
+                // Obtém o elemento que contém o relatório visível completo
+                const printContents = document.getElementById("printable-area").innerHTML;
+                
+                // Abre uma nova janela do navegador de forma limpa (sem restrições do iframe pai)
+                const printWindow = window.open('', '_blank', 'width=900,height=800,scrollbars=yes,resizable=yes');
+                
+                if (!printWindow) {
+                    showNotification("Bloqueador de popups detetado! Por favor, autorize popups para este site ou pressione Ctrl+P/Cmd+P no teclado.", true);
+                    return;
+                }
+
+                // Escreve o documento HTML completo com CSS e fontes injetados na nova janela
+                printWindow.document.write(`
+                    <!DOCTYPE html>
+                    <html lang="pt-BR">
+                    <head>
+                        <meta charset="UTF-8">
+                        <title>Projeto raízes: relatório de prontidão & estabilização</title>
+                        <script src="https://cdn.tailwindcss.com"><\/script>
+                        <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+                        <script src="https://unpkg.com/lucide@latest"><\/script>
+                        <style>
+                            body {
+                                font-family: 'Plus Jakarta Sans', sans-serif;
+                                background: white !important;
+                                color: #1a1a1a !important;
+                                padding: 20px !important;
+                            }
+                            .no-print {
+                                display: none !important;
+                            }
+                            .print-page-break {
+                                page-break-before: always;
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="max-w-4xl mx-auto">
+                            ${printContents}
+                        </div>
+                        <script>
+                            // Inicializa os ícones do Lucide no documento clonado
+                            lucide.createIcons();
+                            
+                            // Aguarda a renderização completa e as fontes antes de disparar a impressão
+                            window.onload = function() {
+                                setTimeout(function() {
+                                    window.print();
+                                    window.close();
+                                }, 800);
+                            };
+                        <\/script>
+                    </body>
+                    </html>
+                `);
+
+                printWindow.document.close();
+                showNotification("A preparar visualização de impressão e conversão para PDF...");
+            } catch (err) {
+                console.error("Erro ao abrir janela de impressão:", err);
+                showNotification("Impossível abrir nova janela. Por favor, tente usar Ctrl+P / Cmd+P.", true);
+            }
+        }
+
+        // Logic Engine: Calculations & Heuristics for Diagnostic Report
+        function processarGerarRelatorio() {
+            // Extract Form Values
+            const ctx_nome = document.getElementById("ctx_nome").value || "Profissional do projeto";
+            const ctx_experiencia = document.getElementById("ctx_experiencia").value || "Não informada";
+            const ctx_especialidade = document.getElementById("ctx_especialidade").value || "Psicologia clínica";
+            const ctx_meta_financeira = document.getElementById("ctx_meta_financeira").value || "0";
+            const ctx_pilares = document.getElementById("ctx_pilares").value || "Não especificado";
+            const ctx_tom = document.getElementById("ctx_tom").value || "Não especificado";
+
+            // Rec splits
+            const rec_clinica = parseInt(document.getElementById("ctx_rec_clinica").value) || 0;
+            const rec_infoprodutos = parseInt(document.getElementById("ctx_rec_infoprodutos").value) || 0;
+            const rec_consultorias = parseInt(document.getElementById("ctx_rec_consultorias").value) || 0;
+            const rec_escalavel = parseInt(document.getElementById("ctx_rec_escalavel").value) || 0;
+
+            // Step 1 values
+            let est_fund = "Média";
+            const rads = document.getElementsByName("est_fundamentacao");
+            rads.forEach(r => { if (r.checked) est_fund = r.value; });
+            const est_ultima_leitura = document.getElementById("est_ultima_leitura").value;
+            const est_horas_semana = parseInt(document.getElementById("est_horas_semana").value) || 0;
+            const est_gaps = document.getElementById("est_gaps").value || "Aprofundamento generalizado";
+            const est_tipo_aprendiz = document.getElementById("est_tipo_aprendiz").value;
+            const est_objetivo_estudo = document.getElementById("est_objetivo_estudo").value || "Estabilização teórica";
+
+            const check_blocks = [];
+            document.querySelectorAll('input[name="est_bloqueios"]:checked').forEach(c => check_blocks.push(c.value));
+            const est_bloqueios_str = check_blocks.length > 0 ? check_blocks.join(", ") : "Sem bloqueios declarados";
+
+            // Step 2 values
+            const rot_horas_trabalho = parseInt(document.getElementById("rot_horas_trabalho").value) || 0;
+            const rot_vazamento = document.getElementById("rot_vazamento").value || "Múltiplas burocracias";
+            const rot_sustentabilidade = document.getElementById("rot_sustentabilidade").value;
+            const rot_espaco_projeto = document.getElementById("rot_espaco_projeto").value;
+            const rot_pior_dia = document.getElementById("rot_pior_dia").value || "Sem dia crítico declarado";
+            const rot_dia_respiro = document.getElementById("rot_dia_respiro").value || "Sem respiro declarado";
+
+            const dist_clinico = parseInt(document.getElementById("rot_dist_clinico").value) || 0;
+            const dist_adm = parseInt(document.getElementById("rot_dist_adm").value) || 0;
+            const dist_conteudo = parseInt(document.getElementById("rot_dist_conteudo").value) || 0;
+            const dist_infoproduto = parseInt(document.getElementById("rot_dist_infoproduto").value) || 0;
+            const dist_gestao = parseInt(document.getElementById("rot_dist_gestao").value) || 0;
+            const dist_outros = parseInt(document.getElementById("rot_dist_outros").value) || 0;
+
+            // Step 3 values
+            const aut_sono_horas = parseInt(document.getElementById("aut_sono_horas").value) || 0;
+            const aut_sono_qualidade = document.getElementById("aut_sono_qualidade").value;
+            const aut_movimento = document.getElementById("aut_movimento").value;
+            const aut_alimentacao = document.getElementById("aut_alimentacao").value;
+            const aut_lazer = document.getElementById("aut_lazer").value;
+            const aut_deplecao = document.getElementById("aut_deplecao").value;
+            const aut_mais_negligenciado = document.getElementById("aut_mais_negligenciado").value;
+            const aut_uma_mudanca = document.getElementById("aut_uma_mudanca").value || "Inserir tempo de autocuidado básico";
+
+            // Step 4 values
+            const men_medo_crescimento = document.getElementById("men_medo_crescimento").value || "Dificuldade em gerir carga de trabalho";
+            const men_merecimento = document.getElementById("men_merecimento").value;
+            const men_voz_critica = document.getElementById("men_voz_critica").value;
+            const men_impostor = document.getElementById("men_impostor").value;
+            const men_crença_limitante = document.getElementById("men_crença_limitante").value || "Falta de tempo fiduciário";
+            const men_medo_sucesso = document.getElementById("men_medo_sucesso").value || "Não dar conta do crescimento";
+            const men_seguranca_psicologica = document.getElementById("men_seguranca_psicologica").value;
+
+            // Format Report Output Choice
+            const outputLevel = document.querySelector('input[name="formato_saida"]:checked').value;
+
+            // --- HEURISTICS ALGORITHM FOR PILAR CLASSIFICATION ---
+            let statusEstudo = "Verde";
+            let urgenciaEstudo = "Baixa";
+            if (est_horas_semana < 3 || est_ultima_leitura === "Meses" || est_ultima_leitura === "Não lembro" || est_fund === "Fraca" || est_fund === "Muito fraca") {
+                statusEstudo = "Amarelo";
+                urgenciaEstudo = "Média";
+            }
+            if (est_horas_semana < 1 && (est_ultima_leitura === "Meses" || est_ultima_leitura === "Não lembro")) {
+                statusEstudo = "Vermelho";
+                urgenciaEstudo = "Crítica";
+            }
+
+            let statusRotina = "Verde";
+            let urgenciaRotina = "Baixa";
+            if (rot_horas_trabalho > 40 || rot_sustentabilidade === "Amarela" || rot_espaco_projeto === "Só cortando") {
+                statusRotina = "Amarelo";
+                urgenciaRotina = "Média";
+            }
+            if (rot_horas_trabalho > 46 || rot_sustentabilidade === "Vermelha" || rot_espaco_projeto === "Não") {
+                statusRotina = "Vermelho";
+                urgenciaRotina = "Alta";
+            }
+
+            let statusAutocuidado = "Verde";
+            let urgenciaAutocuidado = "Baixa";
+            if (aut_sono_horas < 6 || aut_sono_qualidade === "Ruim" || aut_movimento === "1 a 2 vezes por semana" || aut_alimentacao === "Inconsistente" || aut_deplecao === "Médio") {
+                statusAutocuidado = "Amarelo";
+                urgenciaAutocuidado = "Média";
+            }
+            if ((aut_sono_horas < 6 && aut_sono_qualidade === "Ruim") || aut_movimento === "Inexistente" || aut_alimentacao === "Caótica" || aut_lazer === "Inexistente" || aut_deplecao === "Alto" || aut_deplecao === "Crítico") {
+                statusAutocuidado = "Vermelho";
+                urgenciaAutocuidado = "Alta";
+            }
+
+            let statusMentalidade = "Verde";
+            let urgenciaMentalidade = "Baixa";
+            if (men_merecimento === "Meio termo" || men_impostor === "Às vezes" || men_impostor === "Frequentemente" || men_seguranca_psicologica === "Média") {
+                statusMentalidade = "Amarelo";
+                urgenciaMentalidade = "Média";
+            }
+            if (men_merecimento === "Dúvida" || men_merecimento === "Não" || men_impostor === "Sempre" || men_seguranca_psicologica === "Baixa") {
+                statusMentalidade = "Vermelho";
+                urgenciaMentalidade = "Alta";
+            }
+
+            // COUNT HARSH INDICATORS
+            const vermelhoCount = [statusEstudo, statusRotina, statusAutocuidado, statusMentalidade].filter(s => s === "Vermelho").length;
+            const amareloCount = [statusEstudo, statusRotina, statusAutocuidado, statusMentalidade].filter(s => s === "Amarelo").length;
+
+            let vereditoFinal = "Sim";
+            let vereditoTexto = "Você possui alicerces consolidados em termos de rotina livre, segurança profissional e nível de estresse estável. Pode ingressar no planejamento anual imediatamente.";
+            let statusColorTheme = "bg-emerald-500 text-white border-emerald-500";
+            let statusTextColor = "text-emerald-600";
+            let vereditoTimelineText = "Avanço imediato";
+            let vereditoDataSugerida = "Próximos dias";
+
+            if (vermelhoCount > 0 || amareloCount >= 2) {
+                vereditoFinal = "Não";
+                vereditoTexto = `Seu perfil acusa vazamentos críticos de energia ou sobrecarga. Realizar um planejamento anual ambicioso agora trará apenas sobrecarga emocional. Estabilize seus pilares primeiro.`;
+                statusColorTheme = "bg-rose-500 text-white border-rose-500";
+                statusTextColor = "text-rose-600";
+                vereditoTimelineText = vermelhoCount >= 2 ? "4 a 6 semanas de estabilização" : "2 a 3 semanas de estabilização";
+                vereditoDataSugerida = "Daqui a " + (vermelhoCount >= 2 ? "6" : "3") + " semanas";
+            } else if (amareloCount === 1) {
+                vereditoFinal = "Falta pouco";
+                vereditoTexto = "Você está quase pronta! Apenas um pilar necessita de atenção imediata ou ajuste mínimo antes do roadmap anual.";
+                statusColorTheme = "bg-amber-500 text-white border-amber-500";
+                statusTextColor = "text-amber-600";
+                vereditoTimelineText = "1 a 2 semanas de ajuste";
+                vereditoDataSugerida = "Daqui a 2 semanas";
+            }
+
+            // Show report panel
+            document.getElementById("form-container").classList.add("hidden");
+            document.getElementById("report-container").classList.remove("hidden");
+
+            // Fill header values
+            document.getElementById("rep_nome_vanessa").textContent = ctx_nome;
+
+            // Fill badge veredito
+            const vereditoBox = document.getElementById("veredito-status-box");
+            vereditoBox.className = `lg:col-span-1 border rounded-2xl p-5 flex flex-col justify-between ${vereditoFinal === 'Sim' ? 'bg-emerald-50/20 border-emerald-200' : vereditoFinal === 'Não' ? 'bg-rose-50/20 border-rose-200' : 'bg-amber-50/20 border-amber-200'}`;
+            
+            const dot = document.getElementById("status-dot");
+            dot.className = `w-4.5 h-4.5 rounded-full ${vereditoFinal === 'Sim' ? 'bg-emerald-500' : vereditoFinal === 'Não' ? 'bg-rose-500' : 'bg-amber-500'}`;
+            
+            document.getElementById("veredito-titulo").innerHTML = `${vereditoFinal} <span class="text-xs block text-slate-500 font-medium">Prontidão</span>`;
+            document.getElementById("veredito-descricao").textContent = vereditoTexto;
+            document.getElementById("veredito-timeline").textContent = vereditoTimelineText;
+            document.getElementById("veredito-data").textContent = vereditoDataSugerida;
+
+            // Setup Pillars status badges
+            setupPilarBadge("badge-pilar-estudo", "urgencia-pilar-estudo", statusEstudo, urgenciaEstudo);
+            setupPilarBadge("badge-pilar-rotina", "urgencia-pilar-rotina", statusRotina, urgenciaRotina);
+            setupPilarBadge("badge-pilar-autocuidado", "urgencia-pilar-autocuidado", statusAutocuidado, urgenciaAutocuidado);
+            setupPilarBadge("badge-pilar-mentalidade", "urgencia-pilar-mentalidade", statusMentalidade, urgenciaMentalidade);
+
+            // Update Checklists Icons
+            updateChecklistIcon("chk-estudo-icon", "chk-estudo-desc", statusEstudo);
+            updateChecklistIcon("chk-rotina-icon", "chk-rotina-desc", statusRotina);
+            updateChecklistIcon("chk-autocuidado-icon", "chk-autocuidado-desc", statusAutocuidado);
+            updateChecklistIcon("chk-mentalidade-icon", "chk-mentalidade-desc", statusMentalidade);
+
+            // Render detailed text by LEVEL
+            renderDetailedContent(outputLevel, {
+                ctx_nome, ctx_experiencia, ctx_especialidade, ctx_meta_financeira, ctx_pilares, ctx_tom,
+                rec_clinica, rec_infoprodutos, rec_consultorias, rec_escalavel,
+                statusEstudo, urgenciaEstudo, est_fund, est_ultima_leitura, est_horas_semana, est_gaps, est_tipo_aprendiz, est_objetivo_estudo, est_bloqueios_str,
+                statusRotina, urgenciaRotina, rot_horas_trabalho, rot_vazamento, rot_sustentabilidade, rot_espaco_projeto, rot_pior_dia, rot_dia_respiro, dist_clinico, dist_adm, dist_conteudo, dist_infoproduto, dist_gestao, dist_outros,
+                statusAutocuidado, urgenciaAutocuidado, aut_sono_horas, aut_sono_qualidade, aut_movimento, aut_alimentacao, aut_lazer, aut_deplecao, aut_mais_negligenciado, aut_uma_mudanca,
+                statusMentalidade, urgenciaMentalidade, men_medo_crescimento, men_merecimento, men_voz_critica, men_impostor, men_crença_limitante, men_medo_sucesso, men_seguranca_psicologica,
+                vereditoFinal, vereditoTimelineText, vereditoDataSugerida
+            });
+
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            lucide.createIcons();
+        }
+
+        function setupPilarBadge(badgeId, textId, status, urgencia) {
+            const badge = document.getElementById(badgeId);
+            const text = document.getElementById(textId);
+
+            badge.textContent = status;
+            text.textContent = urgencia;
+
+            if (status === "Verde") {
+                badge.className = "text-xs font-bold px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200";
+                text.className = "text-xs font-semibold text-emerald-600 w-16 text-right";
+            } else if (status === "Amarelo") {
+                badge.className = "text-xs font-bold px-2.5 py-1 rounded-lg bg-amber-50 text-amber-700 border border-amber-200";
+                text.className = "text-xs font-semibold text-amber-600 w-16 text-right";
+            } else {
+                badge.className = "text-xs font-bold px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 border border-rose-200";
+                text.className = "text-xs font-semibold text-rose-600 w-16 text-right";
+            }
+        }
+
+        function updateChecklistIcon(iconId, descId, status) {
+            const icon = document.getElementById(iconId);
+            const desc = document.getElementById(descId);
+
+            if (status === "Verde") {
+                icon.className = "w-5 h-5 text-emerald-600";
+                icon.setAttribute("data-lucide", "check-circle-2");
+                desc.classList.remove("text-rose-500", "font-medium");
+            } else if (status === "Amarelo") {
+                icon.className = "w-5 h-5 text-amber-500";
+                icon.setAttribute("data-lucide", "alert-circle");
+                desc.classList.add("text-amber-600", "font-medium");
+                desc.innerHTML += ` <span class="text-amber-700 font-bold">(ajuste preventivo indicado)</span>`;
+            } else {
+                icon.className = "w-5 h-5 text-rose-600";
+                icon.setAttribute("data-lucide", "x-circle");
+                desc.classList.add("text-rose-600", "font-semibold");
+                desc.innerHTML += ` <span class="text-rose-700 font-extrabold">(gargalo impeditivo)</span>`;
+            }
+        }
+
+        // Render Report Content based on the dynamic data and LEVEL
+        function renderDetailedContent(level, data) {
+            const container = document.getElementById("detailed-report-content");
+            container.innerHTML = "";
+
+            let html = "";
+
+            // COMMON: Strategic Context Header (Clean layout)
+            html += `
+                <div class="border-b border-moss-100 pb-5">
+                    <h3 class="text-xs font-black text-moss-600 tracking-widest mb-2">Dados de parametrização</h3>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+                        <div><span class="text-slate-500 block">Profissional:</span> <strong class="text-slate-800">${data.ctx_nome}</strong></div>
+                        <div><span class="text-slate-500 block">Tempo de atuação:</span> <strong class="text-slate-800">${data.ctx_experiencia}</strong></div>
+                        <div><span class="text-slate-500 block">Especialidade:</span> <strong class="text-slate-800">${data.ctx_especialidade}</strong></div>
+                        <div><span class="text-slate-500 block">Meta financeira:</span> <strong class="text-slate-800">R$ ${data.ctx_meta_financeira}/mês</strong></div>
+                    </div>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs mt-3">
+                        <div><span class="text-slate-500 block">Arquitetura de receita:</span> <strong class="text-slate-800">${data.rec_clinica}% clínica | ${data.rec_infoprodutos}% info | ${data.rec_consultorias}% consult</strong></div>
+                        <div><span class="text-slate-500 block">Pilares teóricos:</span> <strong class="text-slate-800">${data.ctx_pilares}</strong></div>
+                        <div><span class="text-slate-500 block">Tom & estética:</span> <strong class="text-slate-800">${data.ctx_tom}</strong></div>
+                        <div><span class="text-slate-500 block">Nível do relatório:</span> <strong class="text-moss-600">${level}</strong></div>
+                    </div>
+                </div>
+            `;
+
+            if (level === "Level 1") {
+                // LEVEL 1: EXECUTIVE (Summary diagnosis & 1 master recommendation per pilar)
+                html += `
+                    <div class="space-y-6">
+                        <div class="bg-moss-50/30 border border-moss-100 rounded-xl p-5">
+                            <h4 class="text-sm font-bold text-slate-900 mb-2">Resumo executivo do diagnóstico</h4>
+                            <p class="text-xs text-slate-600 leading-relaxed">
+                                Com base nos dados inseridos, seu sistema avaliou a prontidão atual como <strong>${data.vereditoFinal}</strong> para ingressar no planejamento de 12 meses. O maior limitador do seu crescimento clínico e escalabilidade é o pilar classificado como urgente. Recomenda-se iniciar imediatamente a estabilização prioritária pelo prazo de <strong>${data.vereditoTimelineText}</strong>.
+                            </p>
+                        </div>
+
+                        <div class="space-y-4">
+                            <h4 class="text-xs font-bold text-slate-400 tracking-wider">Diretrizes rápidas de estabilização</h4>
+                            
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div class="border border-slate-150 p-4 rounded-xl">
+                                    <h5 class="text-xs font-bold text-blue-700 flex items-center gap-2 mb-1">
+                                        <i data-lucide="graduation-cap" class="w-4 h-4"></i> Pilar 1: estudo [status: ${data.statusEstudo}]
+                                    </h5>
+                                    <p class="text-xs text-slate-600">${data.statusEstudo === 'Verde' ? 'Manter ritmo de atualização regular e monitoramento.' : 'Gargalo de tempo. Realizar leitura pragmática orientada diretamente a problemas de casos atuais.'}</p>
+                                </div>
+
+                                <div class="border border-slate-150 p-4 rounded-xl">
+                                    <h5 class="text-xs font-bold text-amber-700 flex items-center gap-2 mb-1">
+                                        <i data-lucide="clock" class="w-4 h-4"></i> Pilar 2: rotina [status: ${data.statusRotina}]
+                                    </h5>
+                                    <p class="text-xs text-slate-600">${data.statusRotina === 'Verde' ? 'Espaço excelente. Blindar 4h a 8h semanais para criação de conteúdos.' : 'Carga excessiva. Cortar atividades acessórias e automatizar burocracias de prontuário e agendamentos.'}</p>
+                                </div>
+
+                                <div class="border border-slate-150 p-4 rounded-xl">
+                                    <h5 class="text-xs font-bold text-emerald-700 flex items-center gap-2 mb-1">
+                                        <i data-lucide="heart" class="w-4 h-4"></i> Pilar 3: autocuidado [status: ${data.statusAutocuidado}]
+                                    </h5>
+                                    <p class="text-xs text-slate-600">${data.statusAutocuidado === 'Verde' ? 'Nível de autocuidado seguro.' : 'Déficit crônico. Inserir rigorosamente 1 alteração mínima viável imediatamente (Ex: ' + data.aut_uma_mudanca + ')'}</p>
+                                </div>
+
+                                <div class="border border-slate-150 p-4 rounded-xl">
+                                    <h5 class="text-xs font-bold text-indigo-700 flex items-center gap-2 mb-1">
+                                        <i data-lucide="brain" class="w-4 h-4"></i> Pilar 4: mentalidade [status: ${data.statusMentalidade}]
+                                    </h5>
+                                    <p class="text-xs text-slate-600">${data.statusMentalidade === 'Verde' ? 'Segurança psicológica adequada.' : 'Presença de crenças limitantes sobre dinheiro e tempo. Necessário reframe focado no valor do seu CRP e anos de clínica.'}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else if (level === "Level 2" || level === "Level 3") {
+                // LEVEL 2 & 3: OPERATIONAL & COMPLETE (Deep diagnosis + detailed stabilization plans)
+                html += `
+                    <div class="space-y-8">
+                        
+                        <!-- PILAR 1: ESTUDO -->
+                        <div class="border-l-4 border-blue-500 pl-4 space-y-3">
+                            <span class="text-[10px] font-bold text-blue-600 tracking-widest">Pilar 1</span>
+                            <h4 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+                                <i data-lucide="graduation-cap" class="text-blue-500 w-5 h-5"></i>
+                                Estudo estruturado (plano 3-6 meses)
+                            </h4>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                                <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-100">
+                                    <p class="text-slate-500 font-semibold text-[9px] tracking-wider mb-2">Diagnóstico atual</p>
+                                    <ul class="space-y-1 text-slate-600">
+                                        <li>Fundamentação: <strong class="text-slate-800">${data.est_fund}</strong></li>
+                                        <li>Última leitura densa: <strong class="text-slate-800">${data.est_ultima_leitura}</strong></li>
+                                        <li>Horas de estudo/semana: <strong class="text-slate-800">${data.est_horas_semana} horas</strong></li>
+                                        <li>Estilo de aprendizagem: <strong class="text-slate-800">${data.est_tipo_aprendiz}</strong></li>
+                                        <li>Bloqueios: <strong class="text-slate-800">${data.est_bloqueios_str}</strong></li>
+                                    </ul>
+                                    <div class="mt-3 pt-2 border-t border-slate-200">
+                                        <span class="text-slate-500 block font-semibold text-[9px] tracking-wider mb-1">Lacuna de domínio clínico:</span>
+                                        <p class="italic text-slate-600">${data.est_gaps}</p>
+                                    </div>
+                                </div>
+
+                                <div class="bg-blue-50/20 p-3.5 rounded-xl border border-blue-100">
+                                    <p class="text-blue-700 font-semibold text-[9px] tracking-wider mb-2">Diretriz da recomendação</p>
+                                    <p class="text-slate-600 mb-3 leading-relaxed">Criação de um roadmap científico mínimo viável para sanar a lacuna em: <strong>${data.est_gaps.split('.')[0]}</strong>.</p>
+                                    
+                                    <div class="space-y-1.5 text-slate-700 font-semibold">
+                                        <div class="flex justify-between"><span>Tempo mínimo semanal:</span> <span class="text-blue-700 font-bold">${Math.max(data.est_horas_semana, 3)} horas/semana</span></div>
+                                        <div class="flex justify-between"><span>Formato recomendado:</span> <span class="text-slate-800">${data.est_tipo_aprendiz === 'Leitura' ? 'Leitura de artigos + resumos' : 'Supervisão + casos clínicos'}</span></div>
+                                        <div class="flex justify-between"><span>Métrica de sucesso:</span> <span class="text-slate-800">Capacidade de conceitualizar caso difícil sozinho</span></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Timeline Estudo -->
+                            <div class="bg-slate-50 rounded-xl p-4 mt-3 border border-slate-100">
+                                <h5 class="text-xs font-bold text-slate-700 mb-3 flex items-center gap-1.5"><i data-lucide="milestone" class="w-4 h-4 text-blue-500"></i> Cronograma de consolidação científica</h5>
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                                    <div class="bg-white p-3 rounded-lg border border-slate-150">
+                                        <span class="text-[10px] font-black text-blue-600 block mb-1">Mês 1-2: consolidação básica</span>
+                                        <p class="text-slate-600">Focar em 1 autor/conceito central de sua lacuna teórica por ${Math.max(data.est_horas_semana, 3)}h semanais.</p>
+                                    </div>
+                                    <div class="bg-white p-3 rounded-lg border border-slate-150">
+                                        <span class="text-[10px] font-black text-blue-600 block mb-1">Mês 3-4: aprofundamento prático</span>
+                                        <p class="text-slate-600">Integrar as leituras nos atendimentos clínicos reais com revisão direta em supervisão clínica.</p>
+                                    </div>
+                                    <div class="bg-white p-3 rounded-lg border border-slate-150">
+                                        <span class="text-[10px] font-black text-blue-600 block mb-1">Mês 5-6: construção de autoridade</span>
+                                        <p class="text-slate-600">Transformar os resumos teóricos consolidados em conteúdos técnicos de altíssimo valor no Instagram.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- PILAR 2: ROTINA -->
+                        <div class="border-l-4 border-amber-500 pl-4 space-y-3 print-page-break">
+                            <span class="text-[10px] font-bold text-amber-600 tracking-widest">Pilar 2</span>
+                            <h4 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+                                <i data-lucide="clock" class="text-amber-500 w-5 h-5"></i>
+                                Reorganização de rotina & agenda (semanas 1-4)
+                            </h4>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                                <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-100">
+                                    <p class="text-slate-500 font-semibold text-[9px] tracking-wider mb-2">Diagnóstico atual</p>
+                                    <ul class="space-y-1 text-slate-600">
+                                        <li>Carga horária semanal: <strong class="text-slate-800">${data.rot_horas_trabalho} horas/semana</strong></li>
+                                        <li>Sustentabilidade declarada: <strong class="${data.statusRotina === 'Vermelho' ? 'text-rose-600' : 'text-amber-600'} font-bold">${data.rot_sustentabilidade}</strong></li>
+                                        <li>Margem para novos projetos: <strong class="text-slate-800">${data.rot_espaco_projeto}</strong></li>
+                                        <li>Dia crítico/pesado: <strong class="text-slate-800">${data.rot_pior_dia}</strong></li>
+                                        <li>Dia de respiro estratégico: <strong class="text-slate-800">${data.rot_dia_respiro}</strong></li>
+                                    </ul>
+                                    <div class="mt-3 pt-2 border-t border-slate-200">
+                                        <span class="text-slate-500 block font-semibold text-[9px] tracking-wider mb-1">Dreno de energia (vazamento):</span>
+                                        <p class="italic text-slate-600">${data.rot_vazamento}</p>
+                                    </div>
+                                </div>
+
+                                <div class="bg-amber-50/20 p-3.5 rounded-xl border border-amber-100">
+                                    <p class="text-amber-700 font-semibold text-[9px] tracking-wider mb-2">Plano de liberação de horas (cortes & automação)</p>
+                                    <p class="text-slate-600 leading-relaxed mb-3">Sua rotina está categorizada como <strong class="text-slate-900">${data.statusRotina}</strong>. Para sustentar seu projeto de faturamento mensal de R$ ${data.ctx_meta_financeira}, aplique as seguintes ações imediatas:</p>
+                                    
+                                    <ul class="space-y-1.5 text-slate-700">
+                                        ${data.statusRotina === 'Vermelho' ? `
+                                            <li class="flex items-start gap-2"><i data-lucide="alert-triangle" class="w-3.5 h-3.5 text-rose-500 flex-shrink-0 mt-0.5"></i> <span class="text-xs"><strong>Cortar agressivamente:</strong> Reduza 4 atendimentos de convênio ou baixo valor.</span></li>
+                                            <li class="flex items-start gap-2"><i data-lucide="arrow-right-circle" class="w-3.5 h-3.5 text-amber-600 flex-shrink-0 mt-0.5"></i> <span class="text-xs"><strong>Automatizar o vazamento:</strong> Instalar IA ou software médico para prontuários eletrônicos para poupar tarefas administrativas de digitação manual de prontuários.</span></li>
+                                            <li class="flex items-start gap-2"><i data-lucide="check" class="w-3.5 h-3.5 text-emerald-600 flex-shrink-0 mt-0.5"></i> <span class="text-xs"><strong>Meta semanal:</strong> Liberar no mínimo 8h livres na semana.</span></li>
+                                        ` : `
+                                            <li class="flex items-start gap-2"><i data-lucide="check" class="w-3.5 h-3.5 text-emerald-600 flex-shrink-0 mt-0.5"></i> <span class="text-xs"><strong>Ação principal:</strong> Blindar de 4h a 6h semanais em um bloco fixo (ex: segunda de manhã) para seus infoprodutos e redes.</span></li>
+                                            <li class="flex items-start gap-2"><i data-lucide="arrow-right-circle" class="w-3.5 h-3.5 text-amber-600 flex-shrink-0 mt-0.5"></i> <span class="text-xs"><strong>Otimizar o vazamento:</strong> Delegar agendamento a secretária remota ou link automatizado de calendário.</span></li>
+                                        `}
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- PILAR 3: AUTOCUIDADO -->
+                        <div class="border-l-4 border-emerald-500 pl-4 space-y-3 print-page-break">
+                            <span class="text-[10px] font-bold text-emerald-600 tracking-widest">Pilar 3</span>
+                            <h4 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+                                <i data-lucide="heart" class="text-emerald-500 w-5 h-5"></i>
+                                Autocuidado mínimo viável (foco imediato)
+                            </h4>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                                <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-100">
+                                    <p class="text-slate-500 font-semibold text-[9px] tracking-wider mb-2">Diagnóstico atual</p>
+                                    <ul class="space-y-1 text-slate-600">
+                                        <li>Média de sono: <strong class="text-slate-800">${data.aut_sono_horas} horas por noite (${data.aut_sono_qualidade})</strong></li>
+                                        <li>Atividade física: <strong class="text-slate-800">${data.aut_movimento}</strong></li>
+                                        <li>Padrão alimentar: <strong class="text-slate-800">${data.aut_alimentacao}</strong></li>
+                                        <li>Tempo de lazer: <strong class="text-slate-800">${data.aut_lazer}</strong></li>
+                                        <li>Aspecto mais negligenciado: <strong class="text-rose-600 font-bold">${data.aut_mais_negligenciado}</strong></li>
+                                    </ul>
+                                </div>
+
+                                <div class="bg-emerald-50/20 p-3.5 rounded-xl border border-emerald-100">
+                                    <p class="text-emerald-700 font-semibold text-[9px] tracking-wider mb-2">Seu 1º acordo de sobrevivência</p>
+                                    <p class="text-slate-600 leading-relaxed mb-3">Sua integridade física é indispensável para evitar o burnout durante a fase de escala clínica. Sua alteração mínima selecionada para implementar agora:</p>
+                                    <div class="p-3 bg-white rounded-lg border border-emerald-200">
+                                        <p class="text-xs font-bold text-emerald-800 mb-1 flex items-center gap-1.5"><i data-lucide="sparkle" class="w-3.5 h-3.5"></i> Mudança pactuada:</p>
+                                        <p class="text-xs text-slate-700 font-semibold italic">"${data.aut_uma_mudanca}"</p>
+                                    </div>
+                                    <div class="mt-3 flex gap-4 text-[10px] text-slate-500 font-bold">
+                                        <span>Frequência: semanal recorrente</span>
+                                        <span>Gatilho de sucesso: primeira hora da manhã</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- PILAR 4: MENTALIDADE -->
+                        <div class="border-l-4 border-indigo-500 pl-4 space-y-3 print-page-break">
+                            <span class="text-[10px] font-bold text-indigo-600 tracking-widest">Pilar 4</span>
+                            <h4 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+                                <i data-lucide="brain" class="text-indigo-500 w-5 h-5"></i>
+                                Reframe de mentalidade & redução de sabotagem
+                            </h4>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                                <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-100">
+                                    <p class="text-slate-500 font-semibold text-[9px] tracking-wider mb-2">Diagnóstico atual</p>
+                                    <ul class="space-y-1 text-slate-600">
+                                        <li>Bloqueio de medo: <strong class="text-slate-800">${data.men_medo_crescimento}</strong></li>
+                                        <li>Acredita no merecimento: <strong class="text-slate-800">${data.men_merecimento}</strong></li>
+                                        <li>Voz crítica principal: <strong class="text-slate-800">${data.men_voz_critica}</strong></li>
+                                        <li>Nível síndrome do impostor: <strong class="text-slate-800">${data.men_impostor}</strong></li>
+                                        <li>Segurança psicológica global: <strong class="${data.statusMentalidade === 'Vermelho' ? 'text-rose-600' : 'text-amber-600'} font-bold">${data.men_seguranca_psicologica}</strong></li>
+                                    </ul>
+                                </div>
+
+                                <div class="bg-indigo-50/20 p-3.5 rounded-xl border border-indigo-100">
+                                    <p class="text-indigo-700 font-semibold text-[9px] tracking-wider mb-2">Estratégia cognitiva (reframe de crença)</p>
+                                    <div class="space-y-2">
+                                        <div>
+                                            <span class="text-[9px] text-slate-500 font-bold block">Crença limitante maior:</span>
+                                            <p class="text-xs text-rose-700 font-semibold italic">"${data.men_crença_limitante}"</p>
+                                        </div>
+                                        <div class="pt-2 border-t border-indigo-100">
+                                            <span class="text-[9px] text-teal-600 font-bold block">Novo frame cognitivo (a repetir):</span>
+                                            <p class="text-xs text-indigo-900 font-bold">"Minha experiência clínica de ${data.ctx_experiencia} é um ativo escasso e de alta transformação. Eu vendo integridade de saúde, e cobrar o preço justo protege minha própria saúde."</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                `;
+            }
+
+            // LEVEL 3 ONLY: SCRIPT MENTAL, CHECKLISTS & TRACKING TEMPLATES
+            if (level === "Level 3") {
+                html += `
+                    <div class="border-t border-slate-200 pt-8 space-y-6 print-page-break">
+                        <div class="p-5 bg-moss-50/40 border border-moss-200 rounded-2xl">
+                            <h4 class="text-sm font-bold text-moss-950 mb-3 flex items-center gap-1.5">
+                                <i data-lucide="shield-alert" class="w-4 h-4 text-moss-600"></i>
+                                [Projeto raízes bônus] Scripts de combate à síndrome de impostor
+                            </h4>
+                            <div class="space-y-3 text-xs leading-relaxed text-slate-600">
+                                <p><strong>Script diário de autoafirmação baseado nas suas raízes:</strong></p>
+                                <blockquote class="border-l-2 border-moss-400 pl-3 italic bg-white p-3 rounded-lg text-slate-700 font-medium">
+                                    "Minhas credenciais e meus ${data.ctx_experiencia} de dedicação não são frutos do acaso. Eu estudo constantemente e aplico ciência psicológica com ética de alto nível. Eu mereço crescer financeiramente porque isso me permite oferecer mais qualidade e reinvestir na minha formação avançada de especialidade."
+                                </blockquote>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                            <div class="border border-slate-200 rounded-xl p-4">
+                                <h5 class="text-xs font-bold text-slate-800 mb-2 flex items-center gap-1.5"><i data-lucide="calendar" class="w-4 h-4 text-moss-600"></i> Checklist diário de estabilização</h5>
+                                <ul class="space-y-1.5 text-[11px] text-slate-600">
+                                    <li class="flex items-center gap-2"><input type="checkbox" class="rounded border-slate-300"> <span>Executar minha mudança mínima pactuada (${data.aut_uma_mudanca})</span></li>
+                                    <li class="flex items-center gap-2"><input type="checkbox" class="rounded border-slate-300"> <span>Estudar pelo menos ${Math.max(data.est_horas_semana, 1)}h sem interrupção</span></li>
+                                    <li class="flex items-center gap-2"><input type="checkbox" class="rounded border-slate-300"> <span>Utilizar ferramentas digitais para mitigar o vazamento de rotina (${data.rot_vazamento.split(',')[0]})</span></li>
+                                    <li class="flex items-center gap-2"><input type="checkbox" class="rounded border-slate-300"> <span>Fazer reframe verbal de pensamentos de autossabotagem</span></li>
+                                </ul>
+                            </div>
+                            <div class="border border-slate-200 rounded-xl p-4">
+                                <h5 class="text-xs font-bold text-slate-800 mb-2 flex items-center gap-1.5"><i data-lucide="check-square" class="w-4 h-4 text-moss-600"></i> Metodologia de rastreamento semanal</h5>
+                                <div class="space-y-2 text-[11px] text-slate-600 leading-relaxed">
+                                    <p>Toda sexta-feira à tarde, preencha mentalmente ou em bloco de notas:</p>
+                                    <ul class="list-disc pl-4 space-y-1">
+                                        <li>Dormi a média de horas necessária e me senti descansado?</li>
+                                        <li>Consegui dedicar as horas planejadas de estudo prático?</li>
+                                        <li>Senti estresse acumulado alto em algum momento? O que causou?</li>
+                                        <li>Estou psicologicamente pronto para passar ao planejamento de 12 meses?</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            container.innerHTML = html;
+        }
+
+        // Return from view report back to form editing
+        function voltarAoFormulario() {
+            document.getElementById("report-container").classList.add("hidden");
+            document.getElementById("form-container").classList.remove("hidden");
+            currentStep = 5;
+            initWizard();
+        }
+
+        // Copy form state as formatted Markdown text to Clipboard with legacy cross-origin support
+        function copiarMarkdown() {
+            const level = document.querySelector('input[name="formato_saida"]:checked').value;
+            const data = {
+                nome: document.getElementById("ctx_nome").value || "Profissional",
+                esp: document.getElementById("ctx_especialidade").value || "Clínica",
+                exp: document.getElementById("ctx_experiencia").value || "Experiente",
+                meta: document.getElementById("ctx_meta_financeira").value || "0",
+                gaps: document.getElementById("est_gaps").value || "Não informado",
+                bloqueios: document.getElementById("men_crença_limitante").value || "Não informado",
+                mudanca: document.getElementById("aut_uma_mudanca").value || "Não informada",
+            };
+
+            const markdownText = `
+# PROJETO RAÍZES: RELATÓRIO DE PRONTIDÃO + ESTABILIZAÇÃO (PRÉ-PLANEJAMENTO)
+**Nome:** ${data.nome}
+**Especialidade:** ${data.esp} (${data.exp})
+**Meta financeira almejada:** R$ ${data.meta}/mês
+**Nível de entrega:** ${level}
+
+---
+
+## 🎓 PILAR 1: ESTUDO ESTRUTURADO
+- **Gaps clínicos identificados:** ${data.gaps}
+- **Ação:** Planejar 3h-6h semanais estruturadas no formato de maior facilidade cognitiva.
+
+## ⏰ PILAR 2: REORGANIZAÇÃO DE ROTINA
+- **Gargalo identificado:** Sobrecarga física e de tarefas burocráticas acessórias.
+- **Solução:** Aplicar corte e automação de vazamentos de energia.
+
+## 💚 PILAR 3: AUTOCUIDADO MÍNIMO VIÁVEL
+- **Acordo estabelecido:** "${data.mudanca}"
+- **Meta:** Implementar nas próximas 2 semanas sem desculpas ou adiamentos.
+
+## 🧠 PILAR 4: REFRAME DE MENTALIDADE
+- **Crença limitante:** "${data.bloqueios}"
+- **Novo frame:** Minhas qualificações respaldam cobrar valor justo. Vender serviços com integridade é parte do cuidado profissional.
+
+---
+*Gerado via Projeto raízes em 2026*
+`;
+
+            // Legacy Cross-Origin / IFrame copy fallback
+            const tempTextArea = document.createElement("textarea");
+            tempTextArea.value = markdownText;
+            tempTextArea.style.top = "0";
+            tempTextArea.style.left = "0";
+            tempTextArea.style.position = "fixed";
+            document.body.appendChild(tempTextArea);
+            tempTextArea.focus();
+            tempTextArea.select();
+
+            try {
+                const successful = document.execCommand('copy');
+                if (successful) {
+                    showNotification("O relatório em formato markdown foi copiado com sucesso!");
+                } else {
+                    showNotification("Erro ao copiar. Selecione manualmente o conteúdo.", true);
+                }
+            } catch (err) {
+                showNotification("Sua plataforma bloqueou o acesso à área de transferência.", true);
+            }
+
+            document.body.removeChild(tempTextArea);
+        }
+
+        // Load Initial State
+        window.onload = function() {
+            initWizard();
+        };
+    </script>
+</body>
+</html>
